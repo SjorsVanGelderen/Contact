@@ -1,9 +1,6 @@
 (*
    Basic peer-to-peer networking example using Lidgren.Network
    Uses a simple 'mailbox' system
-
-   Special thanks goes to Tyler Forsythe for his excellent peer to peer sample at
-   http://www.tylerforsythe.com/2011/11/peer-to-peer-networking-example-using-the-lidgren-network-framework/
 *)
 
 open System.Net
