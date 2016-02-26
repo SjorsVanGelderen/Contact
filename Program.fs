@@ -35,20 +35,20 @@ let main args =
             getMode ()
     
     let mode = getMode ()
-
+    
     //This application's port number
     let localPort =
-        match mode with
-        | Mode.Create -> 10000
-        | Mode.Join   -> 10001
-        | _           -> failwith "Invalid mode!"
+        printfn "Type a local port number to use"
+        System.Int32.Parse(System.Console.ReadLine ())
 
+    printfn "Using local port: %A" localPort
+    
     //The client's port number
     let remotePort =
-        match mode with
-        | Mode.Create -> 10001
-        | Mode.Join   -> 10000
-        | _           -> failwith "Invalid mode!"
+        printfn "Type a remote port number to use"
+        System.Int32.Parse(System.Console.ReadLine ())
+
+    printfn "Using remote port: %A" remotePort
     
     //Generate a random nickname
     let random = System.Random ()
@@ -90,7 +90,7 @@ let main args =
     printfn "Starting peer"
     let peer = new NetPeer (config)
     peer.Start ()
-
+    
     //Look for peers
     peer.DiscoverKnownPeer ("localhost", remotePort) |> ignore
     peer.DiscoverLocalPeers (remotePort)
