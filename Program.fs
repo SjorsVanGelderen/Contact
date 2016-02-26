@@ -117,68 +117,88 @@ let main args =
     let rec loop times =
         if times > 0 then
             //Process received messages
-            let rec processIncomingMessages () =
+            let rec processIncomingMessages mailbox =
                 let message = peer.ReadMessage ()
-                match message with
-                | null -> ()
-                | _    ->
-                    match message.MessageType with
-                    | Incoming.VerboseDebugMessage
-                    | Incoming.DebugMessage
-                    | Incoming.WarningMessage
-                    | Incoming.ErrorMessage        -> handleDebugMessage message
-                    | Incoming.DiscoveryRequest    ->
-                        peer.SendDiscoveryResponse (null, message.SenderEndPoint)
-                        
-                    | Incoming.DiscoveryResponse   ->
-                        peer.Connect (message.SenderEndPoint) |> ignore
-                        
-                    | Incoming.ConnectionApproval  ->
-                        message.SenderConnection.Approve ()
-                        printfn "Sending peer info"
-                        sendPeerInfo message.SenderEndPoint.Address message.SenderEndPoint.Port
-                        
-                    | Incoming.StatusChanged       ->
-                        let id     = message.SenderConnection.RemoteUniqueIdentifier.ToString ()
-                        let status = enum<NetConnectionStatus> (message.ReadInt32 ()) //(message.ReadByte ())
-                        if status = NetConnectionStatus.Connected then
-                            let reason = message.SenderConnection.RemoteHailMessage.ReadString ()
-                            printfn "%s reports: %A - %s" id status reason
-                        
-                    | Incoming.UnconnectedData    ->
-                        printfn "Unconnected data: %s" (message.ReadString ())
-                        
-                    | Incoming.Data               ->
-                        printfn "Incoming data!"
-                        let messageType = message.ReadInt32 ()
-                        match (enum<MessageType> messageType) with
-                        | MessageType.PeerInformation ->
-                            let byteLength = message.ReadInt32 ()
-                            let ip         = new IPAddress (message.ReadBytes (byteLength))
-                            let port       = message.ReadInt32 ()
-                            let endPoint   = new IPEndPoint (ip, port)
+                let mail =
+                    match message with
+                    | null -> None        
+                    | _    ->
+                        match message.MessageType with
+                        | Incoming.VerboseDebugMessage
+                        | Incoming.DebugMessage
+                        | Incoming.WarningMessage
+                        | Incoming.ErrorMessage        ->
+                            handleDebugMessage message
+                            None
                             
-                            match peer.GetConnection (endPoint) with
-                            | null ->
-                                let localHash  = peer.Configuration.LocalAddress.GetHashCode ()
-                                let localPort  = peer.Configuration.Port.GetHashCode ()
-                                let remoteHash = endPoint.Address.GetHashCode ()
-                                let remotePort = endPoint.Port.GetHashCode ()
-                                if  (localHash <> remoteHash) || (localPort <> remotePort)  then
-                                    printfn "Initiating new connection to %s:%s"
-                                        (endPoint.Address.ToString()) (endPoint.Port.ToString ())
-                                    peer.Connect (endPoint) |> ignore
-                            | _    -> ()
-                        | MessageType.Text         ->
-                            printfn "Received message: %s" (message.ReadString ())
-                        | _                           -> printfn "Unhandled message type: %A!" messageType
-                    | _                            ->
-                        printfn "Unhandled message type: %A! %s" message.MessageType (message.ReadString ())
-                    
+                        | Incoming.DiscoveryRequest    ->
+                            peer.SendDiscoveryResponse (null, message.SenderEndPoint)
+                            None
+                        
+                        | Incoming.DiscoveryResponse   ->
+                            peer.Connect (message.SenderEndPoint) |> ignore
+                            None
+                        
+                        | Incoming.ConnectionApproval  ->
+                            message.SenderConnection.Approve ()
+                            printfn "Sending peer info"
+                            sendPeerInfo message.SenderEndPoint.Address message.SenderEndPoint.Port
+                            None
+                        
+                        | Incoming.StatusChanged       ->
+                            let id     = message.SenderConnection.RemoteUniqueIdentifier.ToString ()
+                            let status = enum<NetConnectionStatus> (message.ReadInt32 ()) //(message.ReadByte ())
+                            if status = NetConnectionStatus.Connected then
+                                let reason = message.SenderConnection.RemoteHailMessage.ReadString ()
+                                printfn "%s reports: %A - %s" id status reason
+                            None
+                        
+                        | Incoming.UnconnectedData    ->
+                            printfn "Unconnected data: %s" (message.ReadString ())
+                            None
+
+                        | Incoming.Data               ->
+                            printfn "Incoming data!"
+                            let messageType = message.ReadInt32 ()
+                            match (enum<MessageType> messageType) with
+                            | MessageType.PeerInformation ->
+                                let byteLength = message.ReadInt32 ()
+                                let ip         = new IPAddress (message.ReadBytes (byteLength))
+                                let port       = message.ReadInt32 ()
+                                let endPoint   = new IPEndPoint (ip, port)
+                                
+                                match peer.GetConnection (endPoint) with
+                                | null ->
+                                    let localHash  = peer.Configuration.LocalAddress.GetHashCode ()
+                                    let localPort  = peer.Configuration.Port.GetHashCode ()
+                                    let remoteHash = endPoint.Address.GetHashCode ()
+                                    let remotePort = endPoint.Port.GetHashCode ()
+                                    if  (localHash <> remoteHash) || (localPort <> remotePort)  then
+                                        printfn "Initiating new connection to %s:%s"
+                                            (endPoint.Address.ToString()) (endPoint.Port.ToString ())
+                                        peer.Connect (endPoint) |> ignore
+                                | _    -> ()
+                                None
+                            | MessageType.Text         ->
+                                Some (message.ReadString ()) //Add message to the mailbox
+                            | _                           ->
+                                printfn "Unhandled message type: %A!" messageType
+                                None
+                                
+                        | _                            ->
+                            printfn "Unhandled message type: %A! %s" message.MessageType (message.ReadString ())
+                            None
+                
+                if message <> null then
                     peer.Recycle message
-                    processIncomingMessages ()
+                    match mail with
+                    | Some m -> processIncomingMessages (mail :: mailbox)
+                    | None   -> processIncomingMessages mailbox
+                else
+                    mailbox
             
-            processIncomingMessages ()
+            let mailbox = (processIncomingMessages [])
+            printfn "Mailbox:\n %A" mailbox
 
             match peer.Connections with
             | null -> ()
