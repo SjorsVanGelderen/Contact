@@ -8,8 +8,8 @@ open Lidgren.Network
 
 //Mode of operation
 type Mode =
-    | Server = 0
-    | Client = 1
+    | Create = 0
+    | Join   = 1
 
 //Enumeration for message types
 type MessageType =
@@ -22,14 +22,14 @@ type Incoming = NetIncomingMessageType
 let main args =
     //Specify the mode of operation
     let rec getMode () =
-        printfn "0 - Server, 1 - Client"
+        printfn "0 - Create, 1 - Join"
         match System.Console.ReadLine () with
         | "0" ->
-            printfn "Starting as server"
-            Mode.Server
+            printfn "Creating network"
+            Mode.Create
         | "1" ->
-            printfn  "Starting as client"
-            Mode.Client
+            printfn  "Joining network"
+            Mode.Join
         | _   ->
             printfn "Invalid input!"
             getMode ()
@@ -37,16 +37,17 @@ let main args =
     let mode = getMode ()
 
     //This application's port number
-    let listenPort =
+    let localPort =
         match mode with
-        | Mode.Server -> 10000
-        | Mode.Client -> 10001
+        | Mode.Create -> 10000
+        | Mode.Join   -> 10001
         | _           -> failwith "Invalid mode!"
-    
-    let clientPort =
+
+    //The client's port number
+    let remotePort =
         match mode with
-        | Mode.Server -> 10001
-        | Mode.Client -> 10000
+        | Mode.Create -> 10001
+        | Mode.Join   -> 10000
         | _           -> failwith "Invalid mode!"
     
     //Generate a random nickname
@@ -60,9 +61,9 @@ let main args =
     
     //Set up network configuration
     let config = new NetPeerConfiguration "Networking Example"
-    do config.Port                      <- listenPort
+    do config.Port                      <- localPort
     do config.MaximumConnections        <- 128
-    do config.LocalAddress              <- new IPAddress ((int64)0x0100007f) //NetUtility.Resolve("localhost")
+    do config.LocalAddress              <- new IPAddress ((int64)0x0100007f) //The hex value for 127.0.0.1(localhost) //NetUtility.Resolve("localhost")
     do config.AcceptIncomingConnections <- true
     
     let messageTypes =
@@ -91,8 +92,8 @@ let main args =
     peer.Start ()
 
     //Look for peers
-    peer.DiscoverKnownPeer ("localhost", clientPort) |> ignore
-    peer.DiscoverLocalPeers (clientPort)
+    peer.DiscoverKnownPeer ("localhost", remotePort) |> ignore
+    peer.DiscoverLocalPeers (remotePort)
 
     let handleDebugMessage (message : NetIncomingMessage) =
         printfn "Debug: %s" (message.ReadString ())
@@ -121,7 +122,6 @@ let main args =
                 match message with
                 | null -> ()
                 | _    ->
-                    //printfn "Message type: %A" message.MessageType
                     match message.MessageType with
                     | Incoming.VerboseDebugMessage
                     | Incoming.DebugMessage
@@ -187,15 +187,15 @@ let main args =
                     //Send a message
                     let reportMessage = peer.CreateMessage ()
                     reportMessage.Write ((int)MessageType.Text)
-                    reportMessage.Write (nickname + " reporting in!")
+                    reportMessage.Write (nickname + " says: I'll take that for " + ((random.Next ()).ToString ()) + " dollars!")
                     peer.SendMessage (reportMessage, peer.Connections, NetDeliveryMethod.ReliableOrdered, 0)
             
             System.Threading.Thread.Sleep 100 //Pause for 0.1 seconds
             loop (times - 1)
         
-    loop 600
+    loop 600 //Loop for one minute
 
-    //Stop the server and exit the program
+    //Stop the create and exit the program
     peer.Shutdown ("Finished program")
     printfn "Finished networking sample"
     0
